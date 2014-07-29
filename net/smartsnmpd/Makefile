@@ -37,7 +37,7 @@ define Package/smartsnmpd
 	$(call Package/smartsnmpd/Default)
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS+= +liblua +libubox
+	DEPENDS+= +liblua +libubox +libuci-lua
 	TITLE:=Smart-SNMP (Agent)
 endef
 
