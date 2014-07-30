@@ -48,10 +48,12 @@ endef
 
 define Package/luactor/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua
-	$(CP) $(PKG_BUILD_DIR)/luactor.lua $(1)/usr/lib/lua/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/luactor.lua $(1)/usr/lib/lua/
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luactor
-	$(CP) $(PKG_BUILD_DIR)/luactor/* $(1)/usr/lib/lua/luactor/
-	$(CP) ./files/config.lua $(1)/usr/lib/lua/luactor/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/luactor/*.lua $(1)/usr/lib/lua/luactor/
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luactor/reactor
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/luactor/reactor/*.lua $(1)/usr/lib/lua/luactor/reactor/
+	$(INSTALL_DATA) ./files/config.lua $(1)/usr/lib/lua/luactor/
 endef
 
 $(eval $(call BuildPackage,luactor))
