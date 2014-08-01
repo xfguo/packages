@@ -8,18 +8,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=smartsnmpd
-PKG_VERSION:=2014-07-18
+PKG_VERSION:=2014-08-01
 PKG_RELEASE=$(PKG_SOURCE_VERSION)
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/credosemi/smartsnmp.git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=fa9f12b29bd05d512316898009b1c1d1b1c78617
+PKG_SOURCE_VERSION:=a2028c7150debee2833e7204e6375a91e304058f
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
 PKG_MIRROR_MD5SUM:=
 
 
-PKG_MAINTAINER:=Xiongfei Guo <xfguo@credosemi.com>,Leo Ma <leoma@credosemi.com>
+PKG_MAINTAINER:=Xiongfei Guo <xfguo@credosemi.com>
 
 
 include $(INCLUDE_DIR)/package.mk
@@ -54,7 +54,7 @@ endef
 
 define Package/smartsnmpd/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/snmpd $(1)/usr/sbin/smartsnmpd
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bin/smartsnmpd $(1)/usr/sbin/smartsnmpd
 
 	$(INSTALL_DIR) $(1)/usr/lib/lua/smartsnmp
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/smartsnmp/core.so $(1)/usr/lib/lua/smartsnmp/core.so
