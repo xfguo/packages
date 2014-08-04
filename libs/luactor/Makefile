@@ -36,7 +36,7 @@ define Package/luactor
 	$(call Package/luactor/Default)
 	SECTION:=libs
 	CATEGORY:=Libraries
-	DEPENDS:=+libubox-lua
+	DEPENDS:=+lua +libubox-lua
 	TITLE:=LuActor - A pure Lua Actor Model framework
 endef
 
