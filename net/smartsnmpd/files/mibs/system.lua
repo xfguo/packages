@@ -18,10 +18,6 @@
 -- 
 
 local mib = require "smartsnmp"
-local uci = require "uci"
-
--- System config
-local context = uci.cursor("/etc/config", "/tmp/.uci")
 
 -- scalar index
 local sysDesc             = 1
@@ -35,15 +31,29 @@ local sysORLastChange     = 8
 
 -- table index
 local sysORTable          = 9
-
 -- entry index
 local sysOREntry          = 1
-
 -- list index
 local sysORIndex          = 1
 local sysORID             = 2
 local sysORDesc           = 3
 local sysORUpTime         = 4
+
+local or_oid_cache = {}
+local or_entry_cache = {}
+
+local function or_entry_get(i, name)
+    assert(type(name) == 'string')
+    local value
+    if or_entry_cache[i] then
+        if name == 'uptime' then
+            value = os.difftime(os.time(), or_entry_cache[i][name]) * 100
+        else
+            value = or_entry_cache[i][name]
+        end
+    end
+    return value
+end
 
 local startup_time = 0
 local or_last_changed_time = 0
@@ -55,120 +65,55 @@ end
 
 mib_system_startup(os.time())
 
-local sysGroup = {}
-local or_oid_cache = {}
-local or_index_cache = {}
-local or_table_cache = {}
-
 local or_table_reg = function (oid, desc)
-    local row = {}
-    row['oid'] = {}
+    local entry = {}
+    entry['oid'] = {}
     for i in string.gmatch(oid, "%d") do
-        table.insert(row['oid'], tonumber(i))
+        table.insert(entry['oid'], tonumber(i))
     end
-    row['desc'] = desc
-    row['uptime'] = os.time()
-    table.insert(or_table_cache, row)
-    
+    entry['desc'] = desc
+    entry['uptime'] = os.time()
+    table.insert(or_entry_cache, entry)
+
     or_last_changed_time = os.time()
 
-    or_oid_cache[oid] = #or_table_cache
-
-    or_index_cache = {}
-    for i in ipairs(or_table_cache) do
-        table.insert(or_index_cache, i)
-    end
+    or_oid_cache[oid] = #or_entry_cache
 end
 
 local or_table_unreg = function (oid)
     local or_idx = or_oid_cache[oid]
 
-    if or_table_cache[or_idx] ~= nil then
-        table.remove(or_table_cache, or_idx)
+    if or_entry_cache[or_idx] ~= nil then
+        table.remove(or_entry_cache, or_idx)
         or_last_changed_time = os.time()
-
-        or_index_cache = {}
-        for i in ipairs(or_table_cache) do
-            table.insert(or_index_cache, i)
-        end
     end
-end
 
-local last_load_time = os.time()
-local function need_to_reload()
-    if os.difftime(os.time(), last_load_time) < 3 then
-        return false
-    else
-        last_load_time = os.time()
-        return true
-    end
+    or_oid_cache[oid] = nil
 end
-
-local function load_config()
-    if need_to_reload() == true then
-        context:load("smartsnmpd")
-    end
-end
-
-context:load("smartsnmpd")
 
 local sysMethods = {
     ["or_table_reg"] = or_table_reg, 
     ["or_table_unreg"] = or_table_unreg
 }
+
 mib.module_method_register(sysMethods)
 
-sysGroup = {
-    rocommunity = 'public',
-    [sysDesc]         = mib.ConstString(function () load_config() return mib.sh_call("uname -a") end),
-    [sysObjectID]     = mib.ConstOid(function ()
-                                         load_config()
-                                         local oid
-                                         local objectid
-                                         context:foreach("smartsnmpd", "smartsnmpd", function (s)
-                                             objectid = s.objectid
-                                         end)
-                                         if objectid ~= nil then
-                                            oid = {}
-                                            for i in string.gmatch(objectid, "%d+") do
-                                                table.insert(oid, tonumber(i))
-                                            end
-                                         end
-                                         return oid
-                                     end),
-    [sysUpTime]       = mib.ConstTimeticks(function () load_config() return os.difftime(os.time(), startup_time) * 100 end),
-    [sysContact]      = mib.ConstString(function () 
-                                            load_config()
-                                            local contact
-                                            context:foreach("smartsnmpd", "smartsnmpd", function (s)
-                                                contact = s.contact
-                                            end)
-                                            return contact
-                                        end),
-    [sysName]         = mib.ConstString(function () load_config() return mib.sh_call("uname -n") end),
-    [sysLocation]     = mib.ConstString(function ()
-                                            load_config()
-                                            local location
-                                            context:foreach("smartsnmpd", "smartsnmpd", function (s)
-                                                location = s.location
-                                            end)
-                                            return location
-                                        end),
-    [sysServices]     = mib.ConstInt(function ()
-                                         load_config()
-                                         local services
-                                         context:foreach("smartsnmpd", "smartsnmpd", function (s)
-                                             services = tonumber(s.services)
-                                         end)
-                                         return services
-                                     end),
-    [sysORLastChange] = mib.ConstTimeticks(function () load_config() return os.difftime(os.time(), or_last_changed_time) * 100 end),
+local sysGroup = {
+    [sysDesc]         = mib.ConstOctString(function () return mib.sh_call("uname -a", "*line") end),
+    [sysObjectID]     = mib.ConstOid(function () return { 1, 3, 6, 1, 2, 1, 1 } end),
+    [sysUpTime]       = mib.ConstTimeticks(function () return os.difftime(os.time(), startup_time) * 100 end),
+    [sysContact]      = mib.ConstOctString(function () return "Me <Me@example.org>" end),
+    [sysName]         = mib.ConstOctString(function () return mib.sh_call("uname -n", "*line") end),
+    [sysLocation]     = mib.ConstOctString(function () return "Shanghai" end),
+    [sysServices]     = mib.ConstInt(function () return 72 end),
+    [sysORLastChange] = mib.ConstTimeticks(function () return os.difftime(os.time(), or_last_changed_time) * 100 end),
     [sysORTable]      = {
         [sysOREntry]  = {
-            [sysORIndex]  = mib.UnaIndex(function () load_config() return or_index_cache end),
-            [sysORID]     = mib.ConstOid(function (i) load_config() return or_table_cache[i].oid end),
-            [sysORDesc]   = mib.ConstString(function (i) load_config() return or_table_cache[i].desc end),
-            [sysORUpTime] = mib.ConstTimeticks(function (i) load_config() return os.difftime(os.time(), or_table_cache[i].uptime) * 100 end),
+            indexes = or_entry_cache,
+            [sysORIndex]  = mib.ConstInt(function () return nil, mib.SNMP_ERR_STAT_UNACCESS end),
+            [sysORID]     = mib.ConstOid(function (i) return or_entry_get(i, 'oid') end),
+            [sysORDesc]   = mib.ConstOctString(function (i) return or_entry_get(i, 'desc') end),
+            [sysORUpTime] = mib.ConstTimeticks(function (i) return or_entry_get(i, 'uptime') end),
         }
     }
 }

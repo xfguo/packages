@@ -31,12 +31,16 @@ start_service() {
 	echo "-- auto-generated config file from /etc/config/smartsnmpd" > $CONFIGFILE
 	
 	config_get PORT smartsnmpd port 161
+	echo "protocol = 'snmp'" >> $CONFIGFILE
 	echo "port = $PORT" >> $CONFIGFILE
 	
 	config_get RO_COMMUNITY smartsnmpd ro_community 'public'
 	config_get RW_COMMUNITY smartsnmpd rw_community 'private'
-	echo "ro_community = '$RO_COMMUNITY'" >> $CONFIGFILE
-	echo "rw_community = '$RW_COMMUNITY'" >> $CONFIGFILE
+
+	echo "communities = {" >> $CONFIGFILE
+	echo "  { community = '$RO_COMMUNITY', views = { ['.'] = 'ro' } }," >> $CONFIGFILE
+	echo "  { community = '$RW_COMMUNITY', views = { ['.'] = 'rw' } }," >> $CONFIGFILE
+	echo "}" >> $CONFIGFILE
 
 	config_get MIB_MODULE_PATH smartsnmpd mib_module_path '/usr/lib/lua/smartsnmp/mibs/'
 	echo "mib_module_path = '$MIB_MODULE_PATH'" >> $CONFIGFILE

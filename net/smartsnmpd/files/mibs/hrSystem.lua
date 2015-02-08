@@ -18,7 +18,18 @@
 -- 
 
 local mib = require "smartsnmp"
+local io = require "io"
 
-local dummy = {}
+local getHrSystemUptime = function()
+	local procfs_uptime = io.lines("/proc/uptime")()
+	local uptime, _ = procfs_uptime:match("^(.-) (.-)$")
+	return uptime * 100
+end
 
-return dummy
+local hrSystemUptime = 1
+
+hrSystem = {
+    [hrSystemUptime]         = mib.ConstTimeticks(getHrSystemUptime),
+}
+
+return hrSystem

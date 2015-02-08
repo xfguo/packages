@@ -18,106 +18,125 @@
 -- 
 
 local mib = require "smartsnmp"
-require "ubus"
-require "uloop"
+local utils = require "smartsnmp.utils"
 
-uloop.init()
+local if_entry_cache = {}
 
-local conn = ubus.connect()
-if not conn then
-    error("Failed to connect to ubusd")
+local entry = {
+    desc = "lo",
+    type = 24,
+    mtu = 65535,
+    speed = 10000000,
+    phy_addr = utils.mac2str('aa0f163e7942'),
+    admin_stat = 1,
+    open_stat = 1,
+    in_octet = 2449205,
+    out_octet = 2449198,
+    spec = { 0, 0 }
+}
+table.insert(if_entry_cache, entry)
+
+entry = {
+    desc = "eth0",
+    type = 6,
+    mtu = 1500,
+    speed = 1000000,
+    phy_addr = utils.mac2str('001f1633e721'),
+    admin_stat = 1,
+    open_stat = 1,
+    in_octet = 672549159,
+    out_octet = 672549138,
+    spec = { 0, 0 }
+}
+table.insert(if_entry_cache, entry)
+
+entry = {
+    desc = "eth1",
+    type = 6,
+    mtu = 1500,
+    speed = 100000000,
+    phy_addr = utils.mac2str('8cae4cfe179c'),
+    admin_stat = 1,
+    open_stat = 1,
+    in_octet = 4914346,
+    out_octet = 4914345,
+    spec = { 0, 0 }
+}
+table.insert(if_entry_cache, entry)
+
+entry = {
+    desc = "wlan0",
+    type = 6,
+    mtu = 1500,
+    speed = 0,
+    phy_addr = utils.mac2str('0026c6606030'),
+    admin_stat = 2,
+    open_stat = 2,
+    in_octet = 0,
+    out_octet = 0,
+    spec = { 0, 0 }
+}
+table.insert(if_entry_cache, entry)
+
+entry = {
+    desc = "virbr0",
+    type = 6,
+    mtu = 1500,
+    speed = 0,
+    phy_addr = utils.mac2str('160a8074ee77'),
+    admin_stat = 1,
+    open_stat = 2,
+    in_octet = 0,
+    out_octet = 0,
+    spec = { 0, 0 }
+}
+table.insert(if_entry_cache, entry)
+
+local last_changed_time = os.time()
+
+local function if_entry_get(i, name)
+    assert(type(name) == 'string')
+    local value
+    if if_entry_cache[i] then
+        if name == "" then
+            value = i
+        else
+            value = if_entry_cache[i][name]
+        end
+    end
+    return value
 end
 
-local if_cache = {}
-local if_status_cache = {}
-local if_index_cache = {}
-
-local last_load_time = os.time()
-local function need_to_reload()
-    if os.time() - last_load_time >= 3 then
-        last_load_time = os.time()
-        return true
-    else
-        return false
+local function if_entry_set(i, v, name)
+    assert(type(name) == 'string')
+    if if_entry_cache[i] then
+        if_entry_cache[i][name] = v
     end
 end
-
-local function load_config()
-    if need_to_reload() == true then
-        if_cache = {}
-        if_status_cache = {}
-        if_index_cache = {}
-
-        -- if description
-        for k, v in pairs(conn:call("network.device", "status", {})) do
-            if_status_cache[k] = {}
-        end
-
-        for name_ in pairs(if_status_cache) do
-            for k, v in pairs(conn:call("network.device", "status", { name = name_ })) do
-                if k == 'mtu' then
-                    if_status_cache[name_].mtu = v
-                elseif k == 'macaddr' then
-                    if_status_cache[name_].macaddr = v
-                elseif k == 'up' then
-                    if v == true then            
-                        if_status_cache[name_].up = 1
-                    else
-                        if_status_cache[name_].up = 2
-                    end
-                elseif k == 'statistics' then
-                    for item, stat in pairs(v) do
-                        if item == 'rx_bytes' then
-                            if_status_cache[name_].in_octet = stat
-                        elseif item == 'tx_bytes' then
-                            if_status_cache[name_].out_octet = stat
-                        elseif item == 'rx_errors' then
-                            if_status_cache[name_].in_errors = stat
-                        elseif item == 'tx_errors' then
-                            if_status_cache[name_].out_errors = stat
-                        elseif item == 'rx_dropped' then
-                            if_status_cache[name_].in_discards = stat
-                        elseif item == 'tx_dropped' then
-                            if_status_cache[name_].out_discards = stat
-                        end
-                    end
-                end
-            end
-        end
-
-        if_cache['desc'] = {}
-        for name, status in pairs(if_status_cache) do
-            table.insert(if_cache['desc'], name)
-            for k, v in pairs(status) do
-                if if_cache[k] == nil then if_cache[k] = {} end
-                table.insert(if_cache[k], v)
-            end
-        end
-
-        -- if index
-        for i in ipairs(if_cache['desc']) do
-            table.insert(if_index_cache, i)
-        end
-    end
-end
-
-mib.module_methods.or_table_reg("1.3.6.1.2.1.2", "The MIB module for managing Interfaces implementations")
 
 local ifGroup = {
-    [1]  = mib.ConstInt(function () load_config() return #if_index_cache end),
+    [1]  = mib.ConstInt(function () return #if_entry_cache end),
     [2] = {
         [1] = {
-            [1] = mib.ConstIndex(function () load_config() return if_index_cache end),
-            [2] = mib.ConstString(function (i) load_config() return if_cache['desc'][i] end),
-            [4] = mib.ConstInt(function (i) load_config() return if_cache['mtu'][i] end),
-            [6] = mib.ConstString(function (i) load_config() return if_cache['macaddr'][i] end),
-            [8] = mib.ConstInt(function (i) load_config() return if_cache['up'][i] end),
-            [10] = mib.ConstCount(function (i) load_config() return if_cache['in_octet'][i] end),
-            [13] = mib.ConstCount(function (i) load_config() return if_cache['in_discards'][i] end),
-            [14] = mib.ConstCount(function (i) load_config() return if_cache['in_errors'][i] end),
-            [16] = mib.ConstCount(function (i) load_config() return if_cache['out_octet'][i] end),
-            [19] = mib.ConstCount(function (i) load_config() return if_cache['out_discards'][i] end),
-            [20] = mib.ConstCount(function (i) load_config() return if_cache['out_errors'][i] end),
+            indexes = if_entry_cache,
+            [1] = mib.ConstInt(function (i) return if_entry_get(i, '') end),
+            [2] = mib.ConstOctString(function (i) return if_entry_get(i, 'desc') end),
+            [3] = mib.ConstInt(function (i) return if_entry_get(i, 'type') end),
+            [4] = mib.ConstInt(function (i) return if_entry_get(i, 'mtu') end),
+            [5] = mib.ConstInt(function (i) return if_entry_get(i, 'speed') end),
+            [6] = mib.ConstOctString(function (i) return if_entry_get(i, 'phy_addr') end),
+            [7] = mib.Int(function (i) return if_entry_get(i, 'admin_stat') end, function (i, v) return if_entry_set(i, v, 'admin_stat') end),
+            [8] = mib.ConstInt(function (i) return if_entry_get(i, 'open_stat') end),
+            [9] = mib.ConstTimeticks(function (i)
+                                         local time
+                                         if if_entry_cache[i] then
+                                             time =  os.difftime(os.time(), last_changed_time) * 100
+                                         end
+                                         return time
+                                     end),
+            [10] = mib.ConstInt(function (i) return if_entry_get(i, 'in_octet') end),
+            [16] = mib.ConstInt(function (i) return if_entry_get(i, 'out_octet') end),
+            [22] = mib.ConstOid(function (i) return if_entry_get(i, 'spec') end),
         }
     }
 }
